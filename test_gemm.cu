@@ -33,6 +33,20 @@ void compareMatrix(float *a, float *b, int row, int col){
         return;
 }
 
+void CPUgemm(float *a, float *b, float *c, int m, int k, int n){
+        for(int i = 0; i < m; i++)
+        {
+                for(int j = 0; j < n; j++)
+                {
+                        for(int q = 0; q < k; q++)
+                        {
+                                c[OFFSET(i , j, n)] += a[OFFSET(i, q, k)] * b[OFFSET(q, j, n)];
+                        }
+                }
+        }
+        return;
+}
+
 int main()
 {
         int m = 128;
