@@ -11,7 +11,7 @@ void randMatrix(float *a, int row, int col){
         float min = -10.0f;
         float max = 10.0f;
 
-        for(int i=0; i < row * col; i++)
+        for(int i = 0; i < row * col; i++)
         {       
                 a[i] = min + (float)(rand()) / RAND_MAX * (max - min);
         }
@@ -21,7 +21,7 @@ void randMatrix(float *a, int row, int col){
 
 
 void compareMatrix(float *a, float *b, int row, int col){
-        for(int i=0; i < row * col; i++)
+        for(int i = 0; i < row * col; i++)
         {
                 if(a[i] - b[i] > 0.5f || a[i] - b[i] < -0.5f)
                         {
@@ -40,11 +40,24 @@ void CPUgemm(float *a, float *b, float *c, int m, int k, int n){
                 {
                         for(int q = 0; q < k; q++)
                         {
-                                c[OFFSET(i , j, n)] += a[OFFSET(i, q, k)] * b[OFFSET(q, j, n)];
+                                c[OFFSET(i , j, n)] += a[OFFSET(i, q, k)] * b[OFFSET(q, j, n)]; 
                         }
                 }
         }
         return;
+}
+
+//basic version--use global memory
+__global__ globalGemm(float *a, float *b, float *c, int M, int K, int N){
+        int x = 
+        float * a_block = a + blockIdx.y * blockDim.y * K;
+        float * b_block = b + blockIdx.x * blockDim.x;
+
+        float temp =0.0f;
+        for(int k = 0; k < K; k++)
+        {
+
+        }
 }
 
 int main()
@@ -70,6 +83,8 @@ int main()
         cudaMalloc((void**)&device_b, mem_size_b);
         cudaMalloc((void**)&device_c, mem_size_c);
 
-        
+        cudaMemcpy(device_a, host_a, mem_size_a, cudaMemcpyHostToDevice);
+        cudaMemcpy(device_b, host_b, mem_size_b, cudaMemcpyHostToDevice);
+
 
 }
