@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <float>
 #include <cuda_runtime.h>
 #include <cstdlib>
 #include <ctime>
@@ -48,27 +47,25 @@ void CPUgemm(float *a, float *b, float *c, int m, int k, int n){
 }
 
 //basic version--use global memory
-__global__ globalGemm(float *a, float *b, float *c, int M, int K, int N){
+__global__ void globalGemm(float *a, float *b, float *c, int M, int K, int N){
         int x = blockIdx.x * blockDim.x + threadIdx.x;
         int y = blockIdx.y * blockDim.y + threadIdx.y;
-        float * a_block = a + blockIdx.y * blockDim.y * K;
-        float * b_block = b + blockIdx.x * blockDim.x;
 
         float temp =0.0f;
         for(int k = 0; k < K; k++)
         {
-                temp += a_block[k + threadIdx.y * K] * b_block[threadIdx.x + k * K];
+                temp += a[k + y * K] * b[k * N + x];
         }
 
-        c[y * K + x] = temp;
+        c[y * N + x] = temp;
 }
 
 int main()
 {
         int M = 16;
-        int N = 16;
+        int N = 8;
         int m = 128;
-        int n = 128;
+        int n = 64;
         int k = 128;
 
         const int mem_size_a = m * k * sizeof(float);
@@ -80,10 +77,10 @@ int main()
         float * host_c = (float*) malloc(mem_size_c);
         float * host_c_cpu = (float*) malloc(mem_size_c);
 
-        randMatrix(host_a, m, n);
-        randMatrix(host_b, m, n);
+        randMatrix(host_a, m, k);
+        randMatrix(host_b, k, n);
 
-        cpuGemm(host_a, host_b, host_c_cpu, m, k, n);
+        CPUgemm(host_a, host_b, host_c_cpu, m, k, n);
 
         float * device_a = NULL;
         float * device_b = NULL;
@@ -97,9 +94,9 @@ int main()
         cudaMemcpy(device_b, host_b, mem_size_b, cudaMemcpyHostToDevice);
 
 
-        dim3 blockDim(M,N);
-        dim3 gridDim((m + M - 1) / M, (n + N - 1) / N);
-        globalGemm<<<gridDim, blockDim>>(device_a, device_b, device_c, m, k, n);
+        dim3 blockDim(N,M);
+        dim3 gridDim((n + N - 1) / N, (m + M - 1) / M);
+        globalGemm<<<gridDim, blockDim>>>(device_a, device_b, device_c, m, k, n);
 
         cudaMemcpy(host_c, device_c, mem_size_c, cudaMemcpyDeviceToHost);
 
