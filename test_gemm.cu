@@ -60,6 +60,8 @@ __global__ void globalGemm(float *a, float *b, float *c, int M, int K, int N){
         c[y * N + x] = temp;
 }
 
+__global__ void sharedGemm(float *a, )
+
 int main()
 {
         int M = 16;
