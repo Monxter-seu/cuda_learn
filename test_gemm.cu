@@ -60,7 +60,16 @@ __global__ void globalGemm(float *a, float *b, float *c, int M, int K, int N){
         c[y * N + x] = temp;
 }
 
-__global__ void sharedGemm(float *a, )
+//shared memory version
+__global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, int BM,
+                           int BN , int BK){
+        int x = threadIdx.x + blockDim.x * blockIdx.x;
+        int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+        __shared__ tempA[BM * BK];
+        __shared__ tempB[BK * BN];
+
+}
 
 int main()
 {
