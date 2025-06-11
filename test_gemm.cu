@@ -71,7 +71,7 @@ __global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, in
         __shared__ float tempA[BM][BK];
         __shared__ float tempB[BK][BN];
 
-        float tempC[BM][BN];
+        float temp = 0.0f;
 
         for(int k = 0; k < (K + BK -1) / BK ; k++)
         {
@@ -93,16 +93,16 @@ __global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, in
                 }
                 __syncthreads();
 
-                for(int idx = 0; idx < BK; i++)
+                for(int idx = 0; idx < BK; idx++)
                 {
-                        tempC[threadIdx.x][threadIdx.y] += tempA[threadIdx.x][idx] * tempB[idx][threadIdx.y];
+                        temp += tempA[threadIdx.x][idx] * tempB[idx][threadIdx.y];
                 }
 
                 __syncthreads();
 
-
-                c[OFFSET(x, y, N)] += tempC[threadIdx.x][threadIdx.y];
         }
+
+         c[OFFSET(x, y, N)] += temp;
 
 }
 
