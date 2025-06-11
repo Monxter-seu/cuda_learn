@@ -5,8 +5,10 @@
 
 #define OFFSET(row, col, rowLength) (row * rowLength + col)
 
+const int BM = 16;
+const int BN = 8;
+const int BK = 16;
 void randMatrix(float *a, int row, int col){
-        srand((unsigned int)time(NULL));
         float min = -10.0f;
         float max = 10.0f;
 
@@ -33,6 +35,7 @@ void compareMatrix(float *a, float *b, int row, int col){
 }
 
 void CPUgemm(float *a, float *b, float *c, int m, int k, int n){
+        for(int i = 0; i < m * n; i++) c[i] = 0.0f;
         for(int i = 0; i < m; i++)
         {
                 for(int j = 0; j < n; j++)
@@ -61,12 +64,10 @@ __global__ void globalGemm(float *a, float *b, float *c, int M, int K, int N){
 }
 
 //shared memory version
-__global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, int BM,
-                           int BN , int BK){
+__global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N){
         int x = threadIdx.x + blockDim.x * blockIdx.x;
         int y = threadIdx.y + blockDim.y * blockIdx.y;
-        int tid = threadIdx.x + blockDim.x * threadIdx.y;
-
+        int tid = threadIdx.y * blockDim.x + threadIdx.x;
 
         __shared__ float tempA[BM][BK];
         __shared__ float tempB[BK][BN];
@@ -81,7 +82,7 @@ __global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, in
                         int col = idx % BK;
                         int globalRow = BM * blockIdx.y + row;
                         int globalCol = BK * k + col;
-                        tempA[row][col] = a[OFFSET(globalRow, globalCol , K)];
+                        tempA[row][col] = (globalRow < M && globalCol < K) ? a[OFFSET(globalRow, globalCol, K)] : 0.0f;
                 }
                 for(int idx = tid; idx < BK * BN; idx += BM * BN)
                 {
@@ -89,33 +90,31 @@ __global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, in
                         int col = idx % BN;
                         int globalRow = BK * k + row;
                         int globalCol = BN * blockIdx.x + col;
-                        tempB[row][col] = b[OFFSET(globalRow, globalCol, N)];
+                        tempB[row][col] = (globalRow < K && globalCol < N) ? b[OFFSET(globalRow, globalCol, N)] : 0.0f;
                 }
                 __syncthreads();
 
                 for(int idx = 0; idx < BK; idx++)
                 {
-                        temp += tempA[threadIdx.x][idx] * tempB[idx][threadIdx.y];
+                        temp += tempA[threadIdx.y][idx] * tempB[idx][threadIdx.x];
                 }
 
                 __syncthreads();
 
         }
-
-         c[OFFSET(x, y, N)] += temp;
+                if (x < N && y < M)
+                        c[OFFSET(y, x, N)] = temp;
 
 }
 
 int main()
 {
+        srand((unsigned int)time(NULL));
         int M = 16;
         int N = 8;
         int m = 128;
         int n = 64;
         int k = 128;
-        int BM = 16;
-        int BN = 8;
-        int BK = 16;
 
         const int mem_size_a = m * k * sizeof(float);
         const int mem_size_b = k * n * sizeof(float);
@@ -141,12 +140,16 @@ int main()
 
         cudaMemcpy(device_a, host_a, mem_size_a, cudaMemcpyHostToDevice);
         cudaMemcpy(device_b, host_b, mem_size_b, cudaMemcpyHostToDevice);
+        cudaMemset(device_c, 0, mem_size_c);
 
+        //dim3 blockDim(N,M);
+        //dim3 gridDim((n + N - 1) / N, (m + M - 1) / M);
 
-        dim3 blockDim(N,M);
-        dim3 gridDim((n + N - 1) / N, (m + M - 1) / M);
-        globalGemm<<<gridDim, blockDim>>>(device_a, device_b, device_c, m, k, n);
+        //globalGemm<<<gridDim, blockDim>>>(device_a, device_b, device_c, m, k, n);
 
+        dim3 blockDim(BN, BM);
+        dim3 gridDim((n + BN - 1) / BN, (m + BM - 1) / BM); 
+        sharedGemm<<<gridDim, blockDim>>>(device_a, device_b, device_c, m, k, n);
         cudaMemcpy(host_c, device_c, mem_size_c, cudaMemcpyDeviceToHost);
 
         compareMatrix(host_c_cpu, host_c, m, n);
