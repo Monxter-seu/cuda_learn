@@ -65,9 +65,44 @@ __global__ void sharedGemm(float *a, float *b, float *c, int M, int K, int N, in
                            int BN , int BK){
         int x = threadIdx.x + blockDim.x * blockIdx.x;
         int y = threadIdx.y + blockDim.y * blockIdx.y;
+        int tid = threadIdx.x + blockDim.x * threadIdx.y;
 
-        __shared__ tempA[BM * BK];
-        __shared__ tempB[BK * BN];
+
+        __shared__ float tempA[BM][BK];
+        __shared__ float tempB[BK][BN];
+
+        float tempC[BM][BN];
+
+        for(int k = 0; k < (K + BK -1) / BK ; k++)
+        {
+                for(int idx = tid; idx < BM * BK; idx += BM * BN)
+                {
+                        int row = idx / BK;
+                        int col = idx % BK;
+                        int globalRow = BM * blockIdx.y + row;
+                        int globalCol = BK * k + col;
+                        tempA[row][col] = a[OFFSET(globalRow, globalCol , K)];
+                }
+                for(int idx = tid; idx < BK * BN; idx += BM * BN)
+                {
+                        int row = idx / BN;
+                        int col = idx % BN;
+                        int globalRow = BK * k + row;
+                        int globalCol = BN * blockIdx.x + col;
+                        tempB[row][col] = b[OFFSET(globalRow, globalCol, N)];
+                }
+                __syncthreads();
+
+                for(int idx = 0; idx < BK; i++)
+                {
+                        tempC[threadIdx.x][threadIdx.y] += tempA[threadIdx.x][idx] * tempB[idx][threadIdx.y];
+                }
+
+                __syncthreads();
+
+
+                c[OFFSET(x, y, N)] += tempC[threadIdx.x][threadIdx.y];
+        }
 
 }
 
@@ -78,6 +113,9 @@ int main()
         int m = 128;
         int n = 64;
         int k = 128;
+        int BM = 16;
+        int BN = 8;
+        int BK = 16;
 
         const int mem_size_a = m * k * sizeof(float);
         const int mem_size_b = k * n * sizeof(float);
